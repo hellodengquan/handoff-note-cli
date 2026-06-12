@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: handoff
+Version: 0.1.0
+Summary: 值班交接命令行工具 - 记录交接事项、标记风险、输出 Markdown 摘要
+Author: Oncall Team
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: typer>=0.9.0
+Requires-Dist: rich>=13.0.0

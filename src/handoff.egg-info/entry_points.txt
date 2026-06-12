@@ -1,0 +1,2 @@
+[console_scripts]
+handoff = handoff.cli:app

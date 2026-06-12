@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "handoff"
+version = "0.1.0"
+description = "值班交接命令行工具 - 记录交接事项、标记风险、输出 Markdown 摘要"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Oncall Team" }]
+license = { text = "MIT" }
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+handoff = "handoff.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

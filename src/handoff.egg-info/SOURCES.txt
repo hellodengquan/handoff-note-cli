@@ -1,0 +1,12 @@
+pyproject.toml
+src/handoff/__init__.py
+src/handoff/cli.py
+src/handoff/markdown.py
+src/handoff/models.py
+src/handoff/storage.py
+src/handoff.egg-info/PKG-INFO
+src/handoff.egg-info/SOURCES.txt
+src/handoff.egg-info/dependency_links.txt
+src/handoff.egg-info/entry_points.txt
+src/handoff.egg-info/requires.txt
+src/handoff.egg-info/top_level.txt
