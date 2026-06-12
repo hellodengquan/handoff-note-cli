@@ -10,7 +10,12 @@ from rich.text import Text
 from .models import HandoffItem, HandoffRecord, RiskLevel
 from .storage import Storage
 from .markdown import render_markdown, save_markdown, render_markdown_grouped, save_markdown_grouped
-from .grouper import ShiftGroup, group_by_shift
+from .grouper import (
+    ShiftGroup,
+    group_by_shift,
+    filter_groups_by_risk,
+    sort_groups_by_risk_severity,
+)
 
 
 app = typer.Typer(help="值班交接命令行工具 - 记录交接事项、标记风险、输出 Markdown 摘要")
@@ -86,6 +91,9 @@ def _render_risk_badge_set(levels):
 @app.command("list")
 def list_shifts(
     group_by: Optional[str] = typer.Option(None, "--group-by", help="分组方式：shift（按值班周期）"),
+    filter_risk: Optional[RiskLevel] = typer.Option(
+        None, "--filter-risk", help="仅保留包含目标风险等级（含）以上的值班周期（需配合 --group-by shift）"
+    ),
 ):
     """列出所有值班班次"""
     records = storage.list_records()
@@ -93,8 +101,20 @@ def list_shifts(
         console.print("[yellow]暂无值班记录[/yellow]")
         return
 
+    if filter_risk is not None and group_by != "shift":
+        console.print("[bold yellow]提示[/bold yellow]: --filter-risk 仅在 --group-by shift 模式下生效")
+
     if group_by == "shift":
         groups = group_by_shift(records)
+        if filter_risk is not None:
+            groups = filter_groups_by_risk(groups, filter_risk)
+            groups = sort_groups_by_risk_severity(groups)
+            if not groups:
+                console.print(
+                    f"[yellow]没有 ≥ {filter_risk.value.upper()} 风险的值班周期[/yellow]"
+                )
+                return
+
         for idx, group in enumerate(groups, 1):
             header = Text.assemble(
                 Text(f" 值班周期 #{idx} ", style="bold white on magenta"),
@@ -318,6 +338,9 @@ def summary(
     end_time: Optional[str] = typer.Option(None, "--end", "-e", help="值班结束时间（仅单班次有效）"),
     all_shifts: bool = typer.Option(False, "--all", help="导出全部班次"),
     group_by: Optional[str] = typer.Option(None, "--group-by", help="分组方式：shift（按值班周期）"),
+    filter_risk: Optional[RiskLevel] = typer.Option(
+        None, "--filter-risk", help="仅保留 ≥ 目标风险等级的值班周期（按分组重排序）"
+    ),
     title: str = typer.Option("值班交接汇总", "--title", help="Markdown 标题"),
 ):
     """生成 Markdown 格式的交接摘要"""
@@ -338,7 +361,7 @@ def summary(
         console.print("[bold red]错误[/bold red]: 请指定班次名称，或使用 --all 导出全部班次")
         raise typer.Exit(code=1)
 
-    if len(records) == 1 and not group_by:
+    if len(records) == 1 and not group_by and not filter_risk:
         record = records[0]
         if end_time:
             record.end_time = end_time
@@ -353,19 +376,22 @@ def summary(
             console.print(render_markdown(record))
         return
 
-    if group_by == "shift":
+    use_grouped = (group_by == "shift") or (filter_risk is not None) or (len(records) > 1)
+
+    if use_grouped:
         if output:
-            path = save_markdown_grouped(records, output, title=title)
-            console.print(f"[bold green]✓[/bold green] 按值班周期分组的 Markdown 摘要已保存到: {path}")
+            path = save_markdown_grouped(records, output, title=title, filter_risk=filter_risk)
+            tag = "按值班周期分组的" if group_by == "shift" or filter_risk is not None else ""
+            console.print(f"[bold green]✓[/bold green] {tag}Markdown 摘要已保存到: {path}")
         else:
-            console.print(render_markdown_grouped(records, title=title))
+            console.print(render_markdown_grouped(records, title=title, filter_risk=filter_risk))
         return
 
     if output:
-        path = save_markdown_grouped(records, output, title=title)
+        path = save_markdown_grouped(records, output, title=title, filter_risk=filter_risk)
         console.print(f"[bold green]✓[/bold green] Markdown 摘要已保存到: {path}")
     else:
-        console.print(render_markdown_grouped(records, title=title))
+        console.print(render_markdown_grouped(records, title=title, filter_risk=filter_risk))
 
 
 def main():

@@ -1,7 +1,12 @@
 from typing import List, Optional
 
 from .models import HandoffRecord, RiskLevel
-from .grouper import ShiftGroup, group_by_shift
+from .grouper import (
+    ShiftGroup,
+    group_by_shift,
+    filter_groups_by_risk,
+    sort_groups_by_risk_severity,
+)
 
 
 RISK_EMOJI = {
@@ -149,18 +154,36 @@ def render_markdown(record: HandoffRecord) -> str:
     return "\n".join(lines)
 
 
-def render_markdown_grouped(records: List[HandoffRecord], title: str = "值班交接汇总") -> str:
+def render_markdown_grouped(
+    records: List[HandoffRecord],
+    title: str = "值班交接汇总",
+    filter_risk: Optional[RiskLevel] = None,
+) -> str:
     if not records:
         return f"# {title}\n\n_暂无记录_\n"
 
     groups = group_by_shift(records)
 
+    if filter_risk is not None:
+        groups = filter_groups_by_risk(groups, filter_risk)
+        groups = sort_groups_by_risk_severity(groups)
+
     lines = []
     lines.append(f"# {title}")
     lines.append("")
+    if filter_risk is not None:
+        lines.append(f"- **风险筛选**: ≥ {RISK_EMOJI[filter_risk]} {RISK_LABEL[filter_risk]}")
     lines.append(f"- 值班周期分组数：**{len(groups)}**")
     lines.append(f"- 总班次：**{len(records)}**")
     lines.append("")
+
+    if not groups:
+        lines.append("_没有符合筛选条件的值班周期_")
+        lines.append("")
+        lines.append("---")
+        from datetime import datetime
+        lines.append(f"*由 handoff CLI 自动生成于 {datetime.now().isoformat()}*")
+        return "\n".join(lines)
 
     for idx, group in enumerate(groups, 1):
         lines.append("---")
@@ -195,8 +218,13 @@ def save_markdown(record: HandoffRecord, output_path: Optional[str] = None) -> s
     return path
 
 
-def save_markdown_grouped(records: List[HandoffRecord], output_path: str, title: str = "值班交接汇总") -> str:
-    content = render_markdown_grouped(records, title=title)
+def save_markdown_grouped(
+    records: List[HandoffRecord],
+    output_path: str,
+    title: str = "值班交接汇总",
+    filter_risk: Optional[RiskLevel] = None,
+) -> str:
+    content = render_markdown_grouped(records, title=title, filter_risk=filter_risk)
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(content)
     return output_path

@@ -1,8 +1,21 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Set
+from typing import List, Optional, Set
 
-from .models import HandoffRecord, RiskLevel
+from .models import HandoffRecord, HandoffItem, RiskLevel
+
+
+RISK_SEVERITY_ORDER = {
+    RiskLevel.CRITICAL: 4,
+    RiskLevel.HIGH: 3,
+    RiskLevel.MEDIUM: 2,
+    RiskLevel.LOW: 1,
+}
+
+
+def _matches_any_risk(item_risks: Set[RiskLevel], target: RiskLevel) -> bool:
+    target_weight = RISK_SEVERITY_ORDER[target]
+    return any(RISK_SEVERITY_ORDER[lv] >= target_weight for lv in item_risks)
 
 
 @dataclass
@@ -32,6 +45,13 @@ class ShiftGroup:
         return levels
 
     @property
+    def highest_risk(self) -> Optional[RiskLevel]:
+        levels = self.risk_levels
+        if not levels:
+            return None
+        return max(levels, key=lambda lv: RISK_SEVERITY_ORDER[lv])
+
+    @property
     def total_items(self) -> int:
         return sum(len(r.items) for r in self.records)
 
@@ -43,6 +63,27 @@ class ShiftGroup:
                 if item.risk in (RiskLevel.HIGH, RiskLevel.CRITICAL):
                     count += 1
         return count
+
+    def contains_risk(self, target: RiskLevel) -> bool:
+        return _matches_any_risk(self.risk_levels, target)
+
+    def filtered_copy(self, target: RiskLevel) -> "ShiftGroup":
+        new_records: List[HandoffRecord] = []
+        for rec in self.records:
+            matched_items = [i for i in rec.items if RISK_SEVERITY_ORDER[i.risk] >= RISK_SEVERITY_ORDER[target]]
+            if not matched_items:
+                continue
+            new_rec = HandoffRecord(
+                shift_name=rec.shift_name,
+                operator=rec.operator,
+                start_time=rec.start_time,
+                end_time=rec.end_time,
+                items=matched_items,
+                notes=rec.notes,
+                created_at=rec.created_at,
+            )
+            new_records.append(new_rec)
+        return ShiftGroup(operator=self.operator, records=new_records)
 
 
 def _parse_time(value: str) -> datetime:
@@ -91,3 +132,23 @@ def group_by_shift(records: List[HandoffRecord]) -> List[ShiftGroup]:
             current_group.records.append(record)
 
     return groups
+
+
+def filter_groups_by_risk(groups: List[ShiftGroup], target: RiskLevel) -> List[ShiftGroup]:
+    kept: List[ShiftGroup] = []
+    for g in groups:
+        if not g.contains_risk(target):
+            continue
+        filtered = g.filtered_copy(target)
+        if filtered.records:
+            kept.append(filtered)
+    return kept
+
+
+def sort_groups_by_risk_severity(groups: List[ShiftGroup]) -> List[ShiftGroup]:
+    def _key(g: ShiftGroup):
+        highest = g.highest_risk
+        weight = RISK_SEVERITY_ORDER[highest] if highest else 0
+        return (-weight, g.start_time)
+
+    return sorted(groups, key=_key)

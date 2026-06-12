@@ -11,4 +11,5 @@ src/handoff.egg-info/dependency_links.txt
 src/handoff.egg-info/entry_points.txt
 src/handoff.egg-info/requires.txt
 src/handoff.egg-info/top_level.txt
+tests/test_filter_risk.py
 tests/test_grouping.py
